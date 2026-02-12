@@ -110,6 +110,55 @@ private:
         }
     }
 
+      void decreaseKeyInternal(FibNode* node, int newDist) {
+        node->distance = newDist;
+
+        FibNode* parent = node->parent;
+
+        if (parent && node->distance < parent->distance) {
+            cut(node, parent);
+            cascadingCut(parent);
+        }
+
+        if (node->distance < minNode->distance)
+            minNode = node;
+    }
+
+    void cut(FibNode* node, FibNode* parent) {
+        parent->degree--;
+
+        if (node->right == node) {
+            parent->child = nullptr;
+        } else {
+            node->left->right = node->right;
+            node->right->left = node->left;
+
+            if (parent->child == node)
+                parent->child = node->right;
+        }
+
+        node->parent = nullptr;
+        node->marked = false;
+
+        node->left = minNode;
+        node->right = minNode->right;
+        minNode->right->left = node;
+        minNode->right = node;
+    }
+
+    void cascadingCut(FibNode* node) {
+        FibNode* parent = node->parent;
+
+        if (parent) {
+            if (!node->marked) {
+                node->marked = true;
+            } else {
+                cut(node, parent);
+                cascadingCut(parent);
+            }
+        }
+    }
+
 public:
     FibonacciHeap()
         : minNode(nullptr), nodeCount(0) {}
@@ -173,6 +222,13 @@ public:
         z->left = z->right = z;
 
         return z;
+    }
+
+    void decreaseKey(FibNode* node, int newDist) {
+        if (!node || newDist > node->distance)
+            return;
+
+        decreaseKeyInternal(node, newDist);
     }
 
     bool empty() const {
@@ -281,6 +337,7 @@ std::vector<int> bellmanFord(
     return dist;
 }
 
+// Testing generation functions and FibonacciHeap class
 int main() {
     int n = 100;
 
