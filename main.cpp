@@ -386,27 +386,189 @@ std::vector<int> dijkstraStandard(
     return distances;
 }
 
+// Johnson
+std::vector<std::vector<int>> johnsonsAlgorithm(
+    const std::vector<std::vector<std::pair<int,int>>>& graph,
+    int n
+) {
+    std::vector<std::vector<std::pair<int,int>>> gPrime = graph;
+
+    gPrime.push_back(std::vector<std::pair<int,int>>());
+
+    for (int i = 0; i < n; ++i)
+        gPrime[n].push_back({i, 0});
+
+    std::vector<int> h = bellmanFord(gPrime, n + 1, n);
+
+    if (h.empty())
+        return {};
+
+    std::vector<std::vector<std::pair<int,int>>> reweighted(n);
+
+    for (int u = 0; u < n; ++u)
+        for (auto &e : graph[u]) {
+            int v = e.first;
+            int w = e.second;
+
+            if (h[u] != INF && h[v] != INF)
+                reweighted[u].push_back({
+                    v,
+                    w + h[u] - h[v]
+                });
+        }
+
+    std::vector<std::vector<int>> allDist(
+        n,
+        std::vector<int>(n, INF)
+    );
+
+    for (int u = 0; u < n; ++u) {
+        std::vector<int> dist =
+            dijkstraStandard(reweighted, n, u);
+
+        for (int v = 0; v < n; ++v)
+            if (dist[v] != INF &&
+                h[u] != INF &&
+                h[v] != INF) {
+
+                allDist[u][v] =
+                    dist[v] + h[v] - h[u];
+            }
+    }
+
+    return allDist;
+}
+
+void runSimulation(
+    const std::vector<int>& vertexCounts,
+    const std::vector<std::string>& density,
+    int numRuns,
+    int minW,
+    int maxW
+) {
+    std::cout << std::left
+              << std::setw(15) << "Vertices (n)"
+              << " | " << std::setw(15) << "Edges (m)"
+              << " | " << std::setw(15) << "Density"
+              << " | " << std::setw(25) << "Floyd-Warshall (ms)"
+              << " | " << std::setw(25) << "Johnson (ms)"
+              << std::endl;
+
+    std::cout << std::string(110, '-') << std::endl;
+
+    for (int n : vertexCounts) {
+        for (const std::string& densityType : density) {
+            double fwTotal = 0;
+            double johnsonTotal = 0;
+
+            long long actualEdges = 0;
+            int johnsonSuccess = 0;
+
+            for (int run = 0; run < numRuns; ++run) {
+                std::vector<std::vector<int>> denseMatrix;
+
+                auto adjList =
+                    generateGraph(
+                        n,
+                        densityType,
+                        minW,
+                        maxW,
+                        denseMatrix
+                    );
+
+                if (run == 0) {
+                    for (auto &edges : adjList)
+                        actualEdges += edges.size();
+                }
+
+                auto startFw =
+                    std::chrono::high_resolution_clock::now();
+
+                auto fwResult =
+                    floydWarshall(denseMatrix, n);
+
+                auto endFw =
+                    std::chrono::high_resolution_clock::now();
+
+                fwTotal +=
+                    std::chrono::duration<
+                        double,
+                        std::milli
+                    >(endFw - startFw).count();
+
+                auto startJ =
+                    std::chrono::high_resolution_clock::now();
+
+                auto johnsonResult =
+                    johnsonsAlgorithm(adjList, n);
+
+                auto endJ =
+                    std::chrono::high_resolution_clock::now();
+
+                if (!johnsonResult.empty()) {
+                    johnsonTotal +=
+                        std::chrono::duration<
+                            double,
+                            std::milli
+                        >(endJ - startJ).count();
+
+                    johnsonSuccess++;
+                }
+            }
+
+            double avgFw = fwTotal / numRuns;
+
+            double avgJ =
+                (johnsonSuccess > 0)
+                    ? johnsonTotal / johnsonSuccess
+                    : std::numeric_limits<double>::infinity();
+
+            std::cout << std::left
+                      << std::setw(15) << n
+                      << " | " << std::setw(15) << actualEdges
+                      << " | " << std::setw(15) << densityType
+                      << " | " << std::setw(25)
+                      << std::fixed
+                      << std::setprecision(4)
+                      << avgFw
+                      << " | " << std::setw(25);
+
+            if (avgJ ==
+                std::numeric_limits<double>::infinity()) {
+
+                std::cout << "Negative Cycle / INF";
+            } else {
+                std::cout << std::fixed
+                          << std::setprecision(4)
+                          << avgJ;
+            }
+
+            std::cout << std::endl;
+        }
+    }
+}
+
 // Testing
 int main() {
-    int n = 100;
+    std::vector<int> vertexCounts = {
+        100, 200, 300, 400, 500
+    };
 
-    for (const std::string& density : {"sparse", "dense"}) {
-        std::vector<std::vector<int>> matrix;
-        auto graph = generateGraph(n, density, 1, 100, matrix);
+    std::vector<std::string> densities = {
+        "sparse", "dense"
+    };
 
-        auto fw = floydWarshall(matrix, n);
-        auto bf = bellmanFord(graph, n, 0);
-        auto dj = dijkstraStandard(graph, n, 0);
+    std::cout << "Starting simulation...\n";
 
-        std::cout << density << " Floyd-Warshall: "
-                  << (fw.empty() ? "FAILED" : "OK") << "\n";
+    runSimulation(
+        vertexCounts,
+        densities,
+        50,
+        1,
+        10
+    );
 
-        std::cout << density << " Bellman-Ford: "
-                  << (bf.empty() ? "FAILED" : "OK") << "\n";
-
-        std::cout << density << " Dijkstra: "
-                  << (dj.empty() ? "FAILED" : "OK") << "\n";
-    }
+    std::cout << "Simulation finished.\n";
 
     return 0;
 }
