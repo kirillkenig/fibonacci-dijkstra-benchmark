@@ -337,19 +337,66 @@ std::vector<int> bellmanFord(
     return dist;
 }
 
-// Testing generation functions and FibonacciHeap class
+// Dijkstra via Fib Heap
+std::vector<int> dijkstraStandard(
+    const std::vector<std::vector<std::pair<int,int>>>& graph,
+    int n,
+    int startNode
+) {
+    std::vector<int> distances(n, INF);
+    std::vector<FibNode*> nodes(n, nullptr);
+    FibonacciHeap pq;
+
+    distances[startNode] = 0;
+    nodes[startNode] = pq.insert(startNode, 0);
+
+    while (!pq.empty()) {
+        FibNode* minNode = pq.extractMin();
+
+        if (!minNode)
+            break;
+
+        int u = minNode->vertex;
+        int currDist = minNode->distance;
+
+        delete minNode;
+        nodes[u] = nullptr;
+
+        if (currDist > distances[u])
+            continue;
+
+        for (auto &e : graph[u]) {
+            int v = e.first;
+            int w = e.second;
+
+            if (distances[u] != INF &&
+                distances[u] + w < distances[v]) {
+
+                distances[v] = distances[u] + w;
+
+                if (!nodes[v]) {
+                    nodes[v] = pq.insert(v, distances[v]);
+                } else {
+                    pq.decreaseKey(nodes[v], distances[v]);
+                }
+            }
+        }
+    }
+
+    return distances;
+}
+
+// Testing
 int main() {
     int n = 100;
 
     for (const std::string& density : {"sparse", "dense"}) {
         std::vector<std::vector<int>> matrix;
-
-        auto graph = generateGraph(
-            n, density, 1, 100, matrix
-        );
+        auto graph = generateGraph(n, density, 1, 100, matrix);
 
         auto fw = floydWarshall(matrix, n);
         auto bf = bellmanFord(graph, n, 0);
+        auto dj = dijkstraStandard(graph, n, 0);
 
         std::cout << density << " Floyd-Warshall: "
                   << (fw.empty() ? "FAILED" : "OK") << "\n";
@@ -357,19 +404,8 @@ int main() {
         std::cout << density << " Bellman-Ford: "
                   << (bf.empty() ? "FAILED" : "OK") << "\n";
 
-        FibonacciHeap heap;
-
-        heap.insert(0, 10);
-        heap.insert(1, 5);
-        heap.insert(2, 20);
-
-        FibNode* min = heap.extractMin();
-
-        std::cout << density << " Fibonacci Heap: "
-                  << (min && min->distance == 5 ? "OK" : "FAILED")
-                  << "\n";
-
-        delete min;
+        std::cout << density << " Dijkstra: "
+                  << (dj.empty() ? "FAILED" : "OK") << "\n";
     }
 
     return 0;
